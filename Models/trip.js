@@ -27,9 +27,13 @@ const tripSchema=mongoose.Schema({
         url:{
             type:String,
             required:true     
-    }
-        
+    }   
        
+    },
+    status: {
+        type: String,
+        enum: ["pending", "active", "cancelled", "completed"],
+        default: "pending"  
     }
 
 })

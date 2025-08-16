@@ -4,4 +4,4 @@ npm install cookie-parser
 npm i express-fileupload
 npm i cloudinary
 npm i cors 
- 
+npm i jsonwebtoken

@@ -11,7 +11,7 @@ const cloudinary = require('cloudinary')
 cloudinary.config({
     cloud_name: 'dvstgfdix',
     api_key: '749451782631583',
-    api_secret: 'gDd9SbBBWc9ruG5A-6xsw64WH7M' // Click 'View API Keys' above to copy your API secret
+    api_secret: 'gDd9SbBBWc9ruG5A-6xsw64WH7M' 
 });
 
 
@@ -20,7 +20,7 @@ class TripController {
         try {
             // console.log(req.body)
             const userId = req.user._id
-            const { budget, location, vehicle, duration, destinationImage } = req.body
+            const { budget, location, vehicle, duration } = req.body
             const file = req.files.destinationImage
             console.log(file, "this is image")
             const imageUpload = await cloudinary.uploader.upload(file.tempFilePath, {
@@ -60,10 +60,22 @@ class TripController {
     }
     };
 
-    static deleteTrip= async(req, res)=>{
-        res.json("trip deleted  ")
+    static deleteTrip = async (req, res) => {
+    try {
+        const { id } = req.params; // Get trip id from request params
 
+        const deletedTrip = await Trip.findByIdAndDelete(id);
+
+        if (!deletedTrip) {
+            return res.status(404).json({ message: "Trip not found" });
+        }
+
+        res.json({ message: "Trip deleted successfully" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error" });
     }
+    };
     
     static tripCancel= async(req, res)=>{
         res.json("trip cancel ")
