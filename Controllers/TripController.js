@@ -11,82 +11,170 @@ const cloudinary = require('cloudinary')
 cloudinary.config({
     cloud_name: 'dvstgfdix',
     api_key: '749451782631583',
-    api_secret: 'gDd9SbBBWc9ruG5A-6xsw64WH7M' 
+    api_secret: 'gDd9SbBBWc9ruG5A-6xsw64WH7M'
 });
 
 
 class TripController {
     static addtrip = async (req, res) => {
-        try {
-            // console.log(req.body)
-            const userId = req.user._id
-            const { budget, location, vehicle, duration } = req.body
-            const file = req.files.destinationImage
-            console.log(file, "this is image")
-            const imageUpload = await cloudinary.uploader.upload(file.tempFilePath, {
-                folder: 'CloudinaryImageUploadFolder'
-            }
-            )
-            // console.log(imageUpload)
-            const trip = await tripModel.create({
-                userId,
-                budget,
-                location,
-                vehicle,
-                duration,
-                destinationImage: {
-                    public_id: imageUpload.public_id,
-                    url: imageUpload.secure_url
-                }
-            })
-            res.json(trip)
+    try {
+        const userId = req.user._id;
+        const { budget, location, vehicle, duration } = req.body;
 
+        // ✅ Check if trip with same details already exists (ignore image)
+        const existingTrip = await tripModel.findOne({
+            userId,
+            budget,
+            location,
+            vehicle,
+            duration,
+        });
 
-        } catch (error) {
-            console.log("error is in trip creation 1!", error)
-
+        if (existingTrip) {
+            return res.status(400).json({
+                message: "Trip with the same details already exists",
+            });
         }
+
+        // ✅ Handle image upload
+        const file = req.files?.destinationImage;
+        if (!file) {
+            return res.status(400).json({ message: "Destination image is required" });
+        }
+
+        const imageUpload = await cloudinary.uploader.upload(file.tempFilePath, {
+            folder: "CloudinaryImageUploadFolder",
+        });
+
+        // ✅ Create new trip with timestamp
+        const trip = await tripModel.create({
+            userId,
+            budget,
+            location,
+            vehicle,
+            duration,
+            destinationImage: {
+                public_id: imageUpload.public_id,
+                url: imageUpload.secure_url,
+            },
+            createdAt: new Date(), // timestamp
+            status: "pending", // default status
+        });
+
+        res.status(201).json(trip);
+    } catch (error) {
+        console.error("Error in trip creation!", error);
+        res.status(500).json({ message: "Server error while creating trip" });
     }
+};
+
 
 
     static getTrip = async (req, res) => {
-    try {
-      const userId = req.user._id;
-      const trips = await tripModel.find({ userId });
-      res.status(200).json(trips);
-    } catch (error) {
-      console.error("Error in fetching trips:", error);
-      res.status(500).json({ message: "Failed to fetch trips" });
-    }
+        try {
+            const userId = req.user._id;
+            const trips = await tripModel.find({ userId });
+            res.status(200).json(trips);
+        } catch (error) {
+            console.error("Error in fetching trips:", error);
+            res.status(500).json({ message: "Failed to fetch trips" });
+        }
     };
 
     static deleteTrip = async (req, res) => {
+        try {
+            const { id } = req.params; 
+
+            const deletedTrip = await tripModel.findOneAndDelete({
+                _id: id,
+                userId: req.user._id, 
+            });
+
+            if (!deletedTrip) {
+                return res.status(404).json({ message: "Trip not found or not authorized" });
+            }
+
+            res.json({ message: "Trip deleted successfully", deletedTrip });
+        } catch (error) {
+            console.error("Error deleting trip:", error);
+            res.status(500).json({ message: "Server error while deleting trip" });
+        }
+    };
+
+
+
+
+    static startTrip = async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const updatedTrip = await tripModel.findByIdAndUpdate(
+                id,
+                { status: "active" },
+                { new: true }
+            );
+
+            if (!updatedTrip) {
+                return res.status(404).json({ message: "Trip not found" });
+            }
+
+            res.json({ message: "Trip started", trip: updatedTrip });
+        } catch (error) {
+            console.error("Error starting trip:", error);
+            res.status(500).json({ message: "Server error" });
+        }
+    };
+
+
+
+    static cancelTrip = async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const updatedTrip = await tripModel.findByIdAndUpdate(
+                id,
+                { status: "cancelled" },
+                { new: true }
+            );
+
+            if (!updatedTrip) {
+                return res.status(404).json({ message: "Trip not found" });
+            }
+
+            res.json({
+                message: "Trip cancelled successfully",
+                trip: updatedTrip,
+            });
+        } catch (error) {
+            console.error("Error cancelling trip:", error);
+            res.status(500).json({ message: "Server error" });
+        }
+    };
+
+
+    static completeTrip = async (req, res) => {
     try {
-        const { id } = req.params; // Get trip id from request params
+        const { id } = req.params; // Trip ID
 
-        const deletedTrip = await Trip.findByIdAndDelete(id);
+        const updatedTrip = await tripModel.findOneAndUpdate(
+            { _id: id, userId: req.user._id }, // only owner can complete
+            { status: "completed" },
+            { new: true }
+        );
 
-        if (!deletedTrip) {
-            return res.status(404).json({ message: "Trip not found" });
+        if (!updatedTrip) {
+            return res.status(404).json({ message: "Trip not found or not authorized" });
         }
 
-        res.json({ message: "Trip deleted successfully" });
+        res.json({
+            message: "Trip marked as completed",
+            trip: updatedTrip,
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error" });
+        console.error("Error completing trip:", error);
+        res.status(500).json({ message: "Server error while completing trip" });
     }
-    };
-    
-    static tripCancel= async(req, res)=>{
-        res.json("trip cancel ")
-
-    }
-
-     static completeTrip= async(req, res)=>{
-        res.json("trip compelete ")
-
-    }
-
+};
 
 
 }
